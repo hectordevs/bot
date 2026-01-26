@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Qwen3-0.6B Local Interface</title>
+    <style>
+        body { font-family: sans-serif; padding: 20px; line-height: 1.6; }
+        #status { margin-top: 10px; color: #666; font-style: italic; }
+        .loaded { color: green; font-weight: bold; font-style: normal; }
+        .error { color: red; font-weight: bold; }
+        code { background: #f4f4f4; padding: 2px 5px; border-radius: 3px; }
+    </style>
+</head>
+<body>
+    <h1>Qwen3-0.6B Interface Local</h1>
+    <p>Esta interfaz carga el modelo <code>onnx-community/Qwen3-0.6B-ONNX</code> en tu navegador.</p>
+    <p><strong>Instrucciones:</strong></p>
+    <ol>
+        <li>Abre la consola del desarrollador (F12 o Ctrl+Shift+I).</li>
+        <li>Espera a que el estado indique "Listo para usar".</li>
+        <li>Ejecuta el comando: <code>ask("Hola, cómo estás?", (r) => console.log(r))</code></li>
+    </ol>
+
+    <div id="status">Iniciando...</div>
+
+    <script type="module">
+        import { pipeline, env } from 'https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.0.0-alpha.19';
+
+        // Configuración inicial
+        // Permitir cache para funcionamiento offline en cargas futuras
+        env.useBrowserCache = true;
+        // Si tienes problemas con WebGPU, puedes forzar wasm descomentando:
+        // env.backends.onnx.wasm.numThreads = 4;
+
+        let generator = null;
+        const statusDiv = document.getElementById('status');
+
+        async function init() {
+            try {
+                statusDiv.innerText = "Cargando modelo (esto puede tardar unos minutos la primera vez)...";
+                console.log("Cargando modelo Qwen3-0.6B...");
+
+                // Cargar el pipeline
+                // dtype: 'q4f16' es recomendado para reducir memoria y usar WebGPU si está disponible
+                generator = await pipeline('text-generation', 'onnx-community/Qwen3-0.6B-ONNX', {
+                    dtype: 'q4f16',
+                });
+
+                statusDiv.innerText = "Modelo cargado. Listo para usar.";
+                statusDiv.classList.add('loaded');
+                console.log("Modelo cargado exitosamente. Ya puedes usar la función ask().");
+            } catch (err) {
+                statusDiv.innerText = "Error cargando el modelo: " + err.message;
+                statusDiv.classList.add('error');
+                console.error("Error detallado:", err);
+            }
+        }
+
+        // Función global ask solicitada
+        window.ask = async function(prompt, callback) {
+            if (!generator) {
+                console.warn("El modelo aún se está cargando, por favor espera...");
+                alert("El modelo aún se está cargando. Mira el estado en la página.");
+                return;
+            }
+
+            statusDiv.innerText = "Generando respuesta...";
+            // console.log("Procesando prompt:", prompt);
+
+            try {
+                // Estructura de mensajes para modelos de chat
+                const messages = [
+                    { role: "user", content: prompt }
+                ];
+
+                // Ejecutar inferencia
+                const output = await generator(messages, {
+                    max_new_tokens: 256, // Ajustable
+                    do_sample: false,    // Greedy para determinismo
+                });
+
+                // Obtener el último mensaje generado
+                // Transformers.js devuelve una lista de mensajes completa con el nuevo añadido al final
+                const responseText = output[0].generated_text.at(-1).content;
+
+                statusDiv.innerText = "Respuesta generada. Listo para la siguiente pregunta.";
+
+                if (callback && typeof callback === 'function') {
+                    callback(responseText);
+                } else {
+                    console.log("Respuesta:", responseText);
+                }
+            } catch (err) {
+                console.error("Error durante la generación:", err);
+                statusDiv.innerText = "Error generando respuesta.";
+                if (callback) callback("Error: " + err.message);
+            }
+        };
+
+        // Iniciar carga
+        init();
+    </script>
+</body>
+</html>
