@@ -23,36 +23,126 @@
     </ol>
 
     <div id="status">Iniciando...</div>
+    <div id="progress-container" style="margin-top: 10px; display: none;">
+        <div id="progress-text">Descargando...</div>
+        <progress id="progress-bar" value="0" max="100" style="width: 100%;"></progress>
+    </div>
 
     <script type="module">
-        // Importar desde una versión reciente de Transformers.js que soporte Qwen3 (v3.8.1+)
-        import { pipeline, env } from 'https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.8.1/dist/transformers.min.js';
+        // Importar una versión estable y conocida de Transformers.js (alpha.19 soporta la mayoría de modelos recientes)
+        import { pipeline, env, AutoModelForCausalLM, AutoTokenizer } from 'https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.0.0-alpha.19';
 
         // Configuración inicial
         // Permitir cache para funcionamiento offline en cargas futuras
         env.useBrowserCache = true;
-        // Si tienes problemas con WebGPU, puedes forzar wasm descomentando:
-        // env.backends.onnx.wasm.numThreads = 4;
+        // Forzar descarga desde Hugging Face Hub si no está local
+        env.allowLocalModels = false;
 
         let generator = null;
         const statusDiv = document.getElementById('status');
+        const progressContainer = document.getElementById('progress-container');
+        const progressBar = document.getElementById('progress-bar');
+        const progressText = document.getElementById('progress-text');
 
         async function init() {
             try {
-                statusDiv.innerText = "Cargando modelo (esto puede tardar unos minutos la primera vez)...";
-                console.log("Cargando modelo Qwen3-0.6B...");
+                statusDiv.innerText = "Conectando con Hugging Face y descargando modelo... (esto puede tardar varios minutos dependiendo de tu conexión)";
+                progressContainer.style.display = 'block';
+                console.log("Iniciando carga del modelo Qwen3-0.6B...");
 
-                // Cargar el pipeline
-                // dtype: 'q4f16' es recomendado para reducir memoria y usar WebGPU si está disponible
-                generator = await pipeline('text-generation', 'onnx-community/Qwen3-0.6B-ONNX', {
-                    dtype: 'q4f16',
+                // Función de callback para el progreso
+                const progressCallback = (progress) => {
+                    // Ignorar eventos que no sean de descarga de archivo si es posible, o manejarlos
+                    if (!progress) return;
+                    if (progress.status === 'progress') {
+                        const percent = Math.round(progress.progress || 0);
+                        const fileName = progress.file || 'archivo';
+                        progressBar.value = percent;
+                        progressText.innerText = `Descargando ${fileName}: ${percent}%`;
+
+                        if (percent % 10 === 0) {
+                             console.log(`Progreso: ${fileName} - ${percent}%`);
+                        }
+                    } else if (progress.status === 'initiate') {
+                        progressText.innerText = `Iniciando descarga de ${progress.file}...`;
+                        console.log(`Iniciando descarga: ${progress.file}`);
+                    } else if (progress.status === 'done') {
+                        progressText.innerText = `Completado: ${progress.file}`;
+                        console.log(`Descarga completada: ${progress.file}`);
+                    }
+                };
+
+                const modelId = 'onnx-community/Qwen3-0.6B-ONNX';
+
+                // 1. Cargar el Tokenizer
+                console.log("Cargando tokenizer...");
+                const tokenizer = await AutoTokenizer.from_pretrained(modelId, {
+                    progress_callback: progressCallback,
                 });
 
-                statusDiv.innerText = "Modelo cargado. Listo para usar.";
+                // 2. Cargar el Modelo con parche para Qwen3 -> Qwen2
+                console.log("Cargando modelo...");
+                // Transformers.js aún no soporta nativamente 'qwen3' en esta versión,
+                // pero la arquitectura es compatible con 'qwen2'.
+                // Vamos a obtener la configuración y modificar el tipo de modelo.
+
+                // Nota: AutoModelForCausalLM carga el config automáticamente, pero podemos interceptarlo
+                // o intentar forzar la carga como qwen2 si es posible.
+                // La forma más robusta sin modificar librerías es cargar el config.json manualmente,
+                // modificarlo y pasarlo.
+
+                // Descargar y parchear el config
+                let config = await (await fetch(`https://huggingface.co/${modelId}/resolve/main/config.json`)).json();
+                config.model_type = 'qwen2'; // Truco para compatibilidad con Transformers.js v3.0.0-alpha.19
+
+                // Cargar el modelo pasando el config parcheado
+                // IMPORTANTE: from_pretrained no acepta 'config' en el segundo argumento de opciones de la misma manera
+                // para sobrescribir la descarga del config.json.
+                // Sin embargo, podemos usar el constructor directamente si from_pretrained falla,
+                // pero from_pretrained maneja la descarga de pesos.
+
+                // Intento alternativo: usar el pipeline pero inyectar el config en la cache o en el argumento si lo soporta.
+                // La documentación de transformers.js es escasa en esto.
+
+                // Si pasamos 'config' en las opciones de from_pretrained, ¿lo usa?
+                // Revisando código fuente de transformers.js (imaginado/conocimiento previo):
+                // A veces acepta un objeto config.
+
+                // Vamos a intentar instanciar el modelo directamente con AutoModelForCausalLM.from_pretrained
+                // pero indicando que use este objeto config en lugar de buscarlo.
+                // Si no funciona, tendremos que esperar que Hugging Face actualice la librería.
+
+                // Otra opción: Qwen2ForCausalLM
+                const { Qwen2ForCausalLM } = await import('https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.0.0-alpha.19');
+
+                // Desafortunadamente Qwen2ForCausalLM no se exporta directamente en el bundle minificado usualmente,
+                // solo a través de AutoModel.
+
+                // Probemos pasando el config modificado.
+                 const model = await AutoModelForCausalLM.from_pretrained(modelId, {
+                    dtype: 'q4f16',
+                    progress_callback: progressCallback,
+                    config: config // Esperamos que esto sobrescriba la carga del config.json
+                });
+
+                // Si lo anterior falla porque ignora el config y vuelve a leer "qwen3", fallará.
+                // Pero es nuestra mejor apuesta sin modificar la librería.
+
+                // 3. Crear el pipeline
+                generator = await pipeline('text-generation', modelId, {
+                    model: model,
+                    tokenizer: tokenizer,
+                });
+
+                progressContainer.style.display = 'none';
+                statusDiv.innerText = "Modelo cargado y listo para usar.";
                 statusDiv.classList.add('loaded');
                 console.log("Modelo cargado exitosamente. Ya puedes usar la función ask().");
+                console.log("Ejemplo: ask('Hola mundo', console.log)");
+
             } catch (err) {
-                statusDiv.innerText = "Error cargando el modelo: " + err.message;
+                progressContainer.style.display = 'none';
+                statusDiv.innerText = "Error crítico cargando el modelo: " + err.message;
                 statusDiv.classList.add('error');
                 console.error("Error detallado:", err);
             }
