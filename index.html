@@ -38,6 +38,10 @@
         // Forzar descarga desde Hugging Face Hub si no está local
         env.allowLocalModels = false;
 
+        // Variables globales
+        window.model = null;
+        window.tokenizer = null;
+
         let generator = null;
         const statusDiv = document.getElementById('status');
         const progressContainer = document.getElementById('progress-container');
@@ -153,10 +157,17 @@
                     }
                 };
 
-                // Cargar el pipeline con callback de progreso
-                // Gracias al interceptor de fetch, 'config.json' se leerá como 'qwen2',
-                // lo que permitirá a Transformers.js usar la clase Qwen2ForCausalLM.
-                generator = await pipeline('text-generation', 'onnx-community/Qwen3-0.6B-ONNX', {
+                // Cargar componentes individualmente para tener control total
+                const modelId = 'onnx-community/Qwen3-0.6B-ONNX';
+
+                console.log("Cargando tokenizer...");
+                window.tokenizer = await AutoTokenizer.from_pretrained(modelId, {
+                    progress_callback: progressCallback,
+                });
+
+                console.log("Cargando modelo...");
+                // Gracias al interceptor de fetch, 'config.json' se leerá como 'qwen2'
+                window.model = await AutoModelForCausalLM.from_pretrained(modelId, {
                     dtype: 'q4f16',
                     progress_callback: progressCallback
                 });
@@ -177,34 +188,40 @@
 
         // Función global ask solicitada
         window.ask = async function(prompt, callback) {
-            if (!generator) {
+            if (!window.model || !window.tokenizer) {
                 console.warn("El modelo aún se está cargando, por favor espera...");
                 alert("El modelo aún se está cargando. Mira el estado en la página.");
                 return;
             }
 
             statusDiv.innerText = "Generando respuesta...";
-            // console.log("Procesando prompt:", prompt);
 
             try {
-                // Estructura de mensajes para modelos de chat
-                // La plantilla de chat de Qwen3 es muy compleja para el parser de JS actual.
-                // Construimos el prompt manualmente usando el formato ChatML estándar de Qwen.
+                // 1. Construir prompt manualmente
                 const promptString = `<|im_start|>user\n${prompt}<|im_end|>\n<|im_start|>assistant\n`;
 
-                // Ejecutar inferencia pasando el string directamente
-                const output = await generator(promptString, {
-                    max_new_tokens: 256, // Ajustable
-                    do_sample: false,    // Greedy para determinismo
-                    return_full_text: false // Solo devolver lo nuevo
+                // 2. Tokenizar
+                const inputs = await window.tokenizer(promptString);
+                console.log("Inputs:", inputs);
+
+                // 3. Generar
+                const outputs = await window.model.generate({
+                    ...inputs,
+                    max_new_tokens: 256,
+                    do_sample: false
                 });
 
-                // Obtener el texto generado
-                // Al pasar un string, el output es un array con objetos { generated_text: "..." }
-                let responseText = output[0].generated_text;
+                // 4. Decodificar
+                const decoded = window.tokenizer.decode(outputs[0], { skip_special_tokens: true });
 
-                // Limpiar tokens de sistema si se colaron (aunque return_full_text: false ayuda)
-                responseText = responseText.replace('<|im_end|>', '').trim();
+                // Limpiar el prompt del resultado si se incluye
+                // Normalmente generate incluye el input.
+                // Buscamos la respuesta del asistente.
+                let responseText = decoded;
+                const assistantTag = "assistant";
+                if (responseText.includes(assistantTag)) {
+                    responseText = responseText.split(assistantTag).pop().trim();
+                }
 
                 statusDiv.innerText = "Respuesta generada. Listo para la siguiente pregunta.";
 
@@ -215,7 +232,7 @@
                 }
             } catch (err) {
                 console.error("Error durante la generación:", err);
-                statusDiv.innerText = "Error generando respuesta.";
+                statusDiv.innerText = "Error generando respuesta: " + err.message;
                 if (callback) callback("Error: " + err.message);
             }
         };
