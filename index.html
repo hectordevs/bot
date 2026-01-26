@@ -44,6 +44,48 @@
         const progressBar = document.getElementById('progress-bar');
         const progressText = document.getElementById('progress-text');
 
+        // Interceptamos fetch para parchear el config.json "al vuelo"
+        const originalFetch = window.fetch;
+        window.fetch = async function(url, options) {
+            // Convertir URL object a string si es necesario
+            const urlString = url.toString();
+
+            // Detectar si estamos pidiendo el config.json de Qwen3
+            if (urlString.includes('onnx-community/Qwen3-0.6B-ONNX') && urlString.endsWith('config.json')) {
+                console.log("Interceptando fetch de config.json para parchear model_type...");
+                try {
+                    // Hacemos la petición real
+                    const response = await originalFetch(url, options);
+                    if (!response.ok) return response;
+
+                    // Obtenemos el JSON
+                    const data = await response.json();
+
+                    // Parcheamos el tipo de modelo
+                    if (data.model_type === 'qwen3') {
+                        console.log("Parcheando model_type: qwen3 -> qwen2");
+                        data.model_type = 'qwen2';
+                    }
+
+                    // Retornamos una nueva respuesta con el JSON modificado
+                    // IMPORTANTE: No pasar response.headers originales, ya que pueden contener
+                    // Content-Length o Content-Encoding que no coincidirán con el nuevo cuerpo.
+                    return new Response(JSON.stringify(data), {
+                        status: response.status,
+                        statusText: response.statusText,
+                        headers: {
+                            'Content-Type': 'application/json'
+                        }
+                    });
+                } catch (err) {
+                    console.error("Error en interceptor de fetch:", err);
+                    return originalFetch(url, options);
+                }
+            }
+
+            return originalFetch(url, options);
+        };
+
         async function init() {
             try {
                 statusDiv.innerText = "Conectando con Hugging Face y descargando modelo... (esto puede tardar varios minutos dependiendo de tu conexión)";
@@ -72,66 +114,12 @@
                     }
                 };
 
-                const modelId = 'onnx-community/Qwen3-0.6B-ONNX';
-
-                // 1. Cargar el Tokenizer
-                console.log("Cargando tokenizer...");
-                const tokenizer = await AutoTokenizer.from_pretrained(modelId, {
-                    progress_callback: progressCallback,
-                });
-
-                // 2. Cargar el Modelo con parche para Qwen3 -> Qwen2
-                console.log("Cargando modelo...");
-                // Transformers.js aún no soporta nativamente 'qwen3' en esta versión,
-                // pero la arquitectura es compatible con 'qwen2'.
-                // Vamos a obtener la configuración y modificar el tipo de modelo.
-
-                // Nota: AutoModelForCausalLM carga el config automáticamente, pero podemos interceptarlo
-                // o intentar forzar la carga como qwen2 si es posible.
-                // La forma más robusta sin modificar librerías es cargar el config.json manualmente,
-                // modificarlo y pasarlo.
-
-                // Descargar y parchear el config
-                let config = await (await fetch(`https://huggingface.co/${modelId}/resolve/main/config.json`)).json();
-                config.model_type = 'qwen2'; // Truco para compatibilidad con Transformers.js v3.0.0-alpha.19
-
-                // Cargar el modelo pasando el config parcheado
-                // IMPORTANTE: from_pretrained no acepta 'config' en el segundo argumento de opciones de la misma manera
-                // para sobrescribir la descarga del config.json.
-                // Sin embargo, podemos usar el constructor directamente si from_pretrained falla,
-                // pero from_pretrained maneja la descarga de pesos.
-
-                // Intento alternativo: usar el pipeline pero inyectar el config en la cache o en el argumento si lo soporta.
-                // La documentación de transformers.js es escasa en esto.
-
-                // Si pasamos 'config' en las opciones de from_pretrained, ¿lo usa?
-                // Revisando código fuente de transformers.js (imaginado/conocimiento previo):
-                // A veces acepta un objeto config.
-
-                // Vamos a intentar instanciar el modelo directamente con AutoModelForCausalLM.from_pretrained
-                // pero indicando que use este objeto config en lugar de buscarlo.
-                // Si no funciona, tendremos que esperar que Hugging Face actualice la librería.
-
-                // Otra opción: Qwen2ForCausalLM
-                const { Qwen2ForCausalLM } = await import('https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.0.0-alpha.19');
-
-                // Desafortunadamente Qwen2ForCausalLM no se exporta directamente en el bundle minificado usualmente,
-                // solo a través de AutoModel.
-
-                // Probemos pasando el config modificado.
-                 const model = await AutoModelForCausalLM.from_pretrained(modelId, {
+                // Cargar el pipeline con callback de progreso
+                // Gracias al interceptor de fetch, 'config.json' se leerá como 'qwen2',
+                // lo que permitirá a Transformers.js usar la clase Qwen2ForCausalLM.
+                generator = await pipeline('text-generation', 'onnx-community/Qwen3-0.6B-ONNX', {
                     dtype: 'q4f16',
-                    progress_callback: progressCallback,
-                    config: config // Esperamos que esto sobrescriba la carga del config.json
-                });
-
-                // Si lo anterior falla porque ignora el config y vuelve a leer "qwen3", fallará.
-                // Pero es nuestra mejor apuesta sin modificar la librería.
-
-                // 3. Crear el pipeline
-                generator = await pipeline('text-generation', modelId, {
-                    model: model,
-                    tokenizer: tokenizer,
+                    progress_callback: progressCallback
                 });
 
                 progressContainer.style.display = 'none';
