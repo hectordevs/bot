@@ -188,19 +188,23 @@
 
             try {
                 // Estructura de mensajes para modelos de chat
-                const messages = [
-                    { role: "user", content: prompt }
-                ];
+                // La plantilla de chat de Qwen3 es muy compleja para el parser de JS actual.
+                // Construimos el prompt manualmente usando el formato ChatML estándar de Qwen.
+                const promptString = `<|im_start|>user\n${prompt}<|im_end|>\n<|im_start|>assistant\n`;
 
-                // Ejecutar inferencia
-                const output = await generator(messages, {
+                // Ejecutar inferencia pasando el string directamente
+                const output = await generator(promptString, {
                     max_new_tokens: 256, // Ajustable
                     do_sample: false,    // Greedy para determinismo
+                    return_full_text: false // Solo devolver lo nuevo
                 });
 
-                // Obtener el último mensaje generado
-                // Transformers.js devuelve una lista de mensajes completa con el nuevo añadido al final
-                const responseText = output[0].generated_text.at(-1).content;
+                // Obtener el texto generado
+                // Al pasar un string, el output es un array con objetos { generated_text: "..." }
+                let responseText = output[0].generated_text;
+
+                // Limpiar tokens de sistema si se colaron (aunque return_full_text: false ayuda)
+                responseText = responseText.replace('<|im_end|>', '').trim();
 
                 statusDiv.innerText = "Respuesta generada. Listo para la siguiente pregunta.";
 
