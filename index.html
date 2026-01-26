@@ -25,7 +25,8 @@
     <div id="status">Iniciando...</div>
 
     <script type="module">
-        import { pipeline, env } from 'https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.0.0-alpha.19';
+        // Importar desde una versión reciente de Transformers.js que soporte Qwen3 (v3.8.1+)
+        import { pipeline, env } from 'https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.8.1/dist/transformers.min.js';
 
         // Configuración inicial
         // Permitir cache para funcionamiento offline en cargas futuras
