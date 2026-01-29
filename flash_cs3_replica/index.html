@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Flash CS3 Replica (JS/HTML5)</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div id="app-container">
+        <!-- Top Menu Bar -->
+        <div id="menubar">
+            <div class="menu-item">File</div>
+            <div class="menu-item">Edit</div>
+            <div class="menu-item">View</div>
+            <div class="menu-item">Insert</div>
+            <div class="menu-item">Modify</div>
+            <div class="menu-item">Text</div>
+            <div class="menu-item">Commands</div>
+            <div class="menu-item">Control</div>
+            <div class="menu-item">Debug</div>
+            <div class="menu-item">Window</div>
+            <div class="menu-item">Help</div>
+        </div>
+
+        <!-- Timeline Area -->
+        <div id="timeline-panel">
+            <div class="panel-header">Timeline</div>
+            <div id="timeline-content">
+                <div id="layers-list">
+                    <!-- Layers will be injected here -->
+                    <div class="layer-row active">
+                        <div class="layer-name">Layer 1</div>
+                        <div class="layer-controls"></div>
+                    </div>
+                </div>
+                <div id="frames-grid">
+                    <!-- Frames will be injected here -->
+                </div>
+            </div>
+            <div id="timeline-status-bar">
+                <span id="current-frame-display">1</span>
+                <span id="fps-display">12.0 fps</span>
+                <span id="time-display">0.0s</span>
+            </div>
+        </div>
+
+        <!-- Main Workspace -->
+        <div id="workspace">
+            <!-- Left Toolbar -->
+            <div id="toolbar">
+                <div class="tool-btn active" data-tool="select" title="Selection Tool (V)">V</div>
+                <div class="tool-btn" data-tool="subselect" title="Subselection Tool (A)">A</div>
+                <div class="tool-btn" data-tool="transform" title="Free Transform Tool (Q)">Q</div>
+                <div class="tool-btn" data-tool="line" title="Line Tool (N)">N</div>
+                <div class="tool-btn" data-tool="lasso" title="Lasso Tool (L)">L</div>
+                <div class="tool-btn" data-tool="pen" title="Pen Tool (P)">P</div>
+                <div class="tool-btn" data-tool="text" title="Text Tool (T)">T</div>
+                <div class="tool-btn" data-tool="oval" title="Oval Tool (O)">O</div>
+                <div class="tool-btn" data-tool="rect" title="Rectangle Tool (R)">R</div>
+                <div class="tool-btn" data-tool="pencil" title="Pencil Tool (Y)">Y</div>
+                <div class="tool-btn" data-tool="brush" title="Brush Tool (B)">B</div>
+                <div class="tool-btn" data-tool="ink" title="Ink Bottle Tool (S)">S</div>
+                <div class="tool-btn" data-tool="bucket" title="Paint Bucket Tool (K)">K</div>
+                <div class="tool-btn" data-tool="dropper" title="Eyedropper Tool (I)">I</div>
+                <div class="tool-btn" data-tool="eraser" title="Eraser Tool (E)">E</div>
+
+                <div class="tool-separator"></div>
+
+                <div id="stroke-fill-controls">
+                    <div id="stroke-color" class="color-box" title="Stroke Color"></div>
+                    <div id="fill-color" class="color-box" title="Fill Color"></div>
+                </div>
+
+                <div class="tool-separator"></div>
+
+                <div id="tool-options">
+                    <!-- Dynamic options based on tool -->
+                </div>
+            </div>
+
+            <!-- Center Stage -->
+            <div id="stage-container">
+                <div id="stage-wrapper">
+                    <canvas id="stage-canvas" width="550" height="400"></canvas>
+                </div>
+            </div>
+
+            <!-- Right Panels -->
+            <div id="right-panels">
+                <div class="panel">
+                    <div class="panel-header">Color</div>
+                    <div class="panel-content" style="height: 100px;">
+                        <!-- Color picker placeholder -->
+                        Color Mixer
+                    </div>
+                </div>
+                <div class="panel">
+                    <div class="panel-header">Library</div>
+                    <div class="panel-content" style="flex: 1;">
+                        <!-- Library content -->
+                        Empty Library
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Bottom Properties Panel -->
+        <div id="properties-panel">
+            <div class="panel-header">Properties <span id="prop-toggle-arrow">▼</span></div>
+            <div class="panel-content">
+                <div id="properties-content">
+                    <div class="prop-group">
+                        <label>Document</label>
+                        <div>Size: 550 x 400 px</div>
+                        <div>Background: White</div>
+                        <div>Frame Rate: 12 fps</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <script src="js/main.js"></script>
+</body>
+</html>
