@@ -8,7 +8,10 @@ document.addEventListener('DOMContentLoaded', () => {
         fillColor: '#FFFFFF',
         brushSize: 5,
         isDrawing: false,
-        fps: 12
+        fps: 12,
+        isPlaying: false,
+        frameScripts: {}, // { frameNum: "javascript code string" }
+        playbackInterval: null
     };
 
     // --- DOM Elements ---
@@ -21,33 +24,125 @@ document.addEventListener('DOMContentLoaded', () => {
     const layersList = document.getElementById('layers-list');
     const framesGrid = document.getElementById('frames-grid');
 
+    // Actions Panel Elements
+    const actionsPanel = document.getElementById('actions-panel');
+    const codeEditor = document.getElementById('code-editor');
+    const actionsFrameNum = document.getElementById('actions-frame-num');
+    const actionsClose = document.getElementById('actions-close');
+
     // --- Initialization ---
     function init() {
         setupTools();
         setupCanvas();
         setupTimeline();
         setupProperties();
+        setupActions();
+        setupMenus();
         updateCursor();
+    }
+
+    // --- Menubar System ---
+    function setupMenus() {
+        document.querySelectorAll('.menu-item').forEach(item => {
+            item.addEventListener('click', () => {
+                const name = item.innerText;
+                if (name === 'Control') {
+                    togglePlayback();
+                } else if (name === 'File') {
+                     const action = prompt("File Menu:\nType 'save' to export project (.json)\nType 'open' to load project", "save");
+                     if (action && action.toLowerCase() === 'save') {
+                         saveProject();
+                     } else if (action && action.toLowerCase() === 'open') {
+                         openProject();
+                     }
+                } else if (name === 'Window') {
+                    actionsPanel.style.display = actionsPanel.style.display === 'none' ? 'flex' : 'none';
+                } else if (name === 'Help') {
+                    alert("Flash CS3 Replica (JS Edition)\n\nLimitations:\n- .fla files are NOT supported.\n- Use 'save' to export to .json.\n- Use F9 to write JavaScript actions.");
+                }
+            });
+        });
+    }
+
+    // --- File IO ---
+    function saveProject() {
+        const data = {
+            version: '1.0',
+            scripts: appState.frameScripts,
+            imageData: canvas.toDataURL()
+        };
+        const blob = new Blob([JSON.stringify(data, null, 2)], {type: 'application/json'});
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'project.json';
+        a.click();
+        URL.revokeObjectURL(url);
+    }
+
+    function openProject() {
+        const input = document.createElement('input');
+        input.type = 'file';
+        input.accept = '.json,.fla';
+        input.onchange = (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            if (file.name.endsWith('.fla')) {
+                alert("Error: .fla files are proprietary binary formats and cannot be opened in this web replica.\n\nPlease use the .json format native to this tool.");
+                return;
+            }
+
+            const reader = new FileReader();
+            reader.onload = (ev) => {
+                try {
+                    const data = JSON.parse(ev.target.result);
+                    appState.frameScripts = data.scripts || {};
+
+                    // Update visuals
+                    for (let i=1; i<=50; i++) {
+                        const cell = document.querySelector(`.frame-cell[data-frame="${i}"]`);
+                        if (cell) {
+                             if (appState.frameScripts[i] && appState.frameScripts[i].trim() !== '') {
+                                 cell.classList.add('has-action');
+                             } else {
+                                 cell.classList.remove('has-action');
+                             }
+                        }
+                    }
+
+                    if (data.imageData) {
+                        const img = new Image();
+                        img.onload = () => {
+                            ctx.clearRect(0,0,canvas.width, canvas.height);
+                            ctx.drawImage(img, 0, 0);
+                        };
+                        img.src = data.imageData;
+                    }
+
+                    selectFrame(1);
+                    alert("Project loaded successfully.");
+                } catch (err) {
+                    alert("Error loading project: " + err.message);
+                }
+            };
+            reader.readAsText(file);
+        };
+        input.click();
     }
 
     // --- Tool System ---
     function setupTools() {
         toolBtns.forEach(btn => {
             btn.addEventListener('click', () => {
-                // Update UI
                 document.querySelector('.tool-btn.active').classList.remove('active');
                 btn.classList.add('active');
-
-                // Update State
                 appState.currentTool = btn.dataset.tool;
-                console.log('Tool selected:', appState.currentTool);
-
                 updateCursor();
                 updatePropertiesPanel();
             });
         });
 
-        // Basic Color Click (just toggles for demo)
         strokeColorBox.addEventListener('click', () => {
             appState.strokeColor = appState.strokeColor === '#000000' ? '#FF0000' : '#000000';
             strokeColorBox.style.backgroundColor = appState.strokeColor;
@@ -60,7 +155,7 @@ document.addEventListener('DOMContentLoaded', () => {
         } else if (appState.currentTool === 'select') {
             canvas.style.cursor = 'default';
         } else if (appState.currentTool === 'eraser') {
-            canvas.style.cursor = 'cell'; // Approximation
+            canvas.style.cursor = 'cell';
         } else {
             canvas.style.cursor = 'default';
         }
@@ -68,7 +163,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // --- Canvas Drawing ---
     function setupCanvas() {
-        // Fix for high DPI displays could go here, but keeping it simple for replica
         ctx.lineCap = 'round';
         ctx.lineJoin = 'round';
 
@@ -83,7 +177,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
             ctx.lineWidth = appState.brushSize;
             ctx.strokeStyle = appState.strokeColor;
-            ctx.fillStyle = appState.strokeColor; // Use stroke color for fill in this simple demo
+            ctx.fillStyle = appState.strokeColor;
 
             if (appState.currentTool === 'brush' || appState.currentTool === 'pencil') {
                 ctx.beginPath();
@@ -110,7 +204,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 ctx.lineTo(x, y);
                 ctx.stroke();
             } else if (appState.currentTool === 'rect') {
-                // Restore previous state to avoid trails
                 ctx.putImageData(snapshot, 0, 0);
                 const width = x - startX;
                 const height = y - startY;
@@ -122,21 +215,18 @@ document.addEventListener('DOMContentLoaded', () => {
         window.addEventListener('mouseup', () => {
             if (appState.isDrawing) {
                 appState.isDrawing = false;
-                ctx.beginPath(); // Reset path
+                ctx.beginPath();
             }
         });
     }
 
     // --- Timeline System ---
     function setupTimeline() {
-        // Create a simple grid
         const numFrames = 50;
         const frameWidth = 10;
 
-        // Setup Grid CSS
         framesGrid.style.width = `${numFrames * frameWidth}px`;
 
-        // Create headers or just simple cells for Layer 1
         const layerRow = document.createElement('div');
         layerRow.style.height = '20px';
         layerRow.style.display = 'flex';
@@ -145,8 +235,8 @@ document.addEventListener('DOMContentLoaded', () => {
             const cell = document.createElement('div');
             cell.className = 'frame-cell';
             cell.dataset.frame = i;
+
             if (i === 1) {
-                // Initial keyframe dot
                 cell.style.backgroundColor = '#fff';
                 const dot = document.createElement('div');
                 dot.style.width = '4px';
@@ -156,7 +246,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 dot.style.margin = '7px auto';
                 cell.appendChild(dot);
             } else if (i % 5 === 0) {
-                cell.style.backgroundColor = '#eee'; // slight tint for every 5th
+                cell.style.backgroundColor = '#eee';
             }
 
             cell.addEventListener('click', () => {
@@ -169,22 +259,86 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function selectFrame(frameNum) {
-        // Visual update only
-        document.querySelectorAll('.frame-cell').forEach(c => c.style.backgroundColor = '');
-
-        // Restore specific styles
         document.querySelectorAll('.frame-cell').forEach(c => {
-             if (c.dataset.frame == 1) return; // Keep keyframe style logic separate in full app
-             if (c.dataset.frame % 5 === 0) c.style.backgroundColor = '#eee';
-        });
+             c.style.backgroundColor = '';
+             if (c.dataset.frame == 1) c.style.backgroundColor = '#fff';
+             else if (c.dataset.frame % 5 === 0) c.style.backgroundColor = '#eee';
 
-        const selectedCell = document.querySelector(`.frame-cell[data-frame="${frameNum}"]`);
-        if (selectedCell) {
-            selectedCell.style.backgroundColor = '#99ccff'; // Selection blue
-        }
+             if (c.dataset.frame == frameNum) c.style.backgroundColor = '#99ccff';
+        });
 
         appState.currentFrame = frameNum;
         currentFrameDisplay.innerText = frameNum;
+        actionsFrameNum.innerText = frameNum;
+
+        codeEditor.value = appState.frameScripts[frameNum] || '';
+    }
+
+    function togglePlayback() {
+        if (appState.isPlaying) {
+            clearInterval(appState.playbackInterval);
+            appState.isPlaying = false;
+            console.log("Playback stopped");
+        } else {
+            appState.isPlaying = true;
+            console.log("Playback started");
+            appState.playbackInterval = setInterval(() => {
+                let next = appState.currentFrame + 1;
+                if (next > 50) next = 1;
+
+                selectFrame(next);
+                executeFrameScript(next);
+
+            }, 1000 / appState.fps);
+        }
+    }
+
+    function executeFrameScript(frameNum) {
+        const code = appState.frameScripts[frameNum];
+        if (code && code.trim() !== '') {
+            try {
+                const func = new Function('app', 'frame', 'canvas', 'ctx', 'stop', 'play', code);
+                func(
+                    appState,
+                    frameNum,
+                    canvas,
+                    ctx,
+                    () => { clearInterval(appState.playbackInterval); appState.isPlaying = false; },
+                    () => { togglePlayback(); }
+                );
+            } catch (err) {
+                console.error(`Error in frame ${frameNum} script:`, err);
+                clearInterval(appState.playbackInterval);
+                appState.isPlaying = false;
+                alert(`Script Error (Frame ${frameNum}): ${err.message}`);
+            }
+        }
+    }
+
+    // --- Actions Panel Logic ---
+    function setupActions() {
+        window.addEventListener('keydown', (e) => {
+            if (e.key === 'F9') {
+                 actionsPanel.style.display = actionsPanel.style.display === 'none' ? 'flex' : 'none';
+            }
+        });
+
+        actionsClose.onclick = () => actionsPanel.style.display = 'none';
+
+        codeEditor.addEventListener('input', () => {
+             const frame = appState.currentFrame;
+             const code = codeEditor.value;
+             appState.frameScripts[frame] = code;
+
+             const cell = document.querySelector(`.frame-cell[data-frame="${frame}"]`);
+             if (cell) {
+                 if (code.trim() !== '') {
+                     cell.classList.add('has-action');
+                 } else {
+                     cell.classList.remove('has-action');
+                 }
+             }
+        });
     }
 
     // --- Properties Panel ---
@@ -203,30 +357,25 @@ document.addEventListener('DOMContentLoaded', () => {
                     <label>Brush Tool</label>
                     <div>Color: ${appState.strokeColor}</div>
                     <div>Size: ${appState.brushSize} px</div>
-                    <div>Smoothing: 50</div>
                 </div>
              `;
         } else if (appState.currentTool === 'select') {
              html = `
                 <div class="prop-group">
                     <label>Selection</label>
-                    <div>X: 0.0</div>
-                    <div>Y: 0.0</div>
-                    <div>W: 0.0</div>
-                    <div>H: 0.0</div>
+                    <div>No object selected</div>
                 </div>
              `;
         } else {
              html = `
                 <div class="prop-group">
-                    <label>${appState.currentTool.charAt(0).toUpperCase() + appState.currentTool.slice(1)}</label>
-                    <div>Settings not available in replica</div>
+                    <label>Tool</label>
+                    <div>${appState.currentTool}</div>
                 </div>
              `;
         }
         content.innerHTML = html;
     }
 
-    // Run
     init();
 });

@@ -52,6 +52,8 @@ body {
     font-size: 10px;
     color: #444;
     cursor: default;
+    display: flex;
+    justify-content: space-between;
 }
 
 #timeline-content {
@@ -101,7 +103,34 @@ body {
     border-bottom: 1px solid #ccc;
     float: left;
     box-sizing: border-box;
+    position: relative;
 }
+
+/* Action indicator for frame */
+.frame-action-flag {
+    position: absolute;
+    top: 2px;
+    left: 2px;
+    width: 0;
+    height: 0;
+    border-left: 5px solid transparent;
+    border-right: 5px solid transparent;
+    border-top: 5px solid transparent; /* Hidden by default */
+    font-size: 8px;
+    line-height: 8px;
+    color: black;
+    pointer-events: none;
+}
+.frame-cell.has-action::after {
+    content: 'a';
+    position: absolute;
+    top: -2px;
+    left: 1px;
+    font-family: serif;
+    font-size: 10px;
+    font-weight: bold;
+}
+
 
 #timeline-status-bar {
     height: 20px;
@@ -221,6 +250,38 @@ canvas {
     background-color: #f5f5f5;
     padding: 10px;
     overflow: auto;
+}
+
+/* Actions Panel */
+#actions-panel {
+    height: 200px; /* Taller than properties */
+    background-color: #e6e6e6;
+    border-top: 1px solid #999;
+    display: flex;
+    flex-direction: column;
+    position: relative;
+    z-index: 10;
+}
+
+#code-editor {
+    width: 100%;
+    height: 100%;
+    border: none;
+    resize: none;
+    font-family: 'Consolas', 'Courier New', monospace;
+    font-size: 12px;
+    padding: 5px;
+    background-color: #fff;
+    box-sizing: border-box;
+}
+
+.close-btn {
+    cursor: pointer;
+    font-weight: bold;
+}
+
+.close-btn:hover {
+    color: red;
 }
 
 /* Bottom Properties */
