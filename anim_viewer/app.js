@@ -120,12 +120,12 @@ async function handleModelUpload(event) {
         if (extension === 'fbx') {
             const loader = new FBXLoader();
             object = await loader.loadAsync(url);
-        } else if (extension === 'glb' || extension === 'gltf') {
+        } else if (extension === 'glb' || extension === 'gltf' || extension === 'vrm') {
             const loader = new GLTFLoader();
             const gltf = await loader.loadAsync(url);
             object = gltf.scene;
         } else {
-            throw new Error("Formato no soportado. Usa FBX o GLB.");
+            throw new Error("Formato no soportado. Usa FBX, GLB o VRM.");
         }
 
         currentModel = object;
@@ -193,9 +193,19 @@ async function handleAnimUpload(event) {
         const url = URL.createObjectURL(file);
 
         try {
-            // Usually Mixamo animations are FBX
-            const loader = new FBXLoader();
-            const object = await loader.loadAsync(url);
+            let object;
+            const extension = filename.split('.').pop().toLowerCase();
+
+            if (extension === 'fbx') {
+                const loader = new FBXLoader();
+                object = await loader.loadAsync(url);
+            } else if (extension === 'vrma') {
+                const loader = new GLTFLoader();
+                const gltf = await loader.loadAsync(url);
+                object = gltf.scene || gltf;
+            } else {
+                 throw new Error("Formato de animación no soportado: " + extension);
+            }
 
             if (object.animations && object.animations.length > 0) {
                 // Take the first animation
