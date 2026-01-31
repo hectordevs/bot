@@ -1,0 +1,91 @@
+{
+  "meta": {
+    "description": "Configuration for VRM Avatar AI Agent",
+    "version": "1.0",
+    "standard": "VRM 1.0"
+  },
+  "blendshapes": {
+    "description": "Standard VRM blendshape presets for facial expressions",
+    "presets": [
+      { "name": "Neutral", "key": "neutral", "description": "Default neutral expression" },
+      { "name": "A", "key": "aa", "description": "Vowel A mouth shape" },
+      { "name": "I", "key": "ih", "description": "Vowel I mouth shape" },
+      { "name": "U", "key": "ou", "description": "Vowel U mouth shape" },
+      { "name": "E", "key": "ee", "description": "Vowel E mouth shape" },
+      { "name": "O", "key": "oh", "description": "Vowel O mouth shape" },
+      { "name": "Blink", "key": "blink", "description": "Both eyes closed" },
+      { "name": "Blink Left", "key": "blink_l", "description": "Left eye closed" },
+      { "name": "Blink Right", "key": "blink_r", "description": "Right eye closed" },
+      { "name": "Joy", "key": "joy", "description": "Happy expression" },
+      { "name": "Angry", "key": "angry", "description": "Angry expression" },
+      { "name": "Sorrow", "key": "sorrow", "description": "Sad expression" },
+      { "name": "Fun", "key": "fun", "description": "Playful/Fun expression" },
+      { "name": "Look Up", "key": "look_up", "description": "Eyes looking up" },
+      { "name": "Look Down", "key": "look_down", "description": "Eyes looking down" },
+      { "name": "Look Left", "key": "look_left", "description": "Eyes looking left" },
+      { "name": "Look Right", "key": "look_right", "description": "Eyes looking right" },
+      { "name": "Surprised", "key": "surprised", "description": "Eyebrows raised, mouth open (often custom)" }
+    ]
+  },
+  "emotions": {
+    "description": "High-level emotional states mapped to animations and blendshapes",
+    "states": [
+      {
+        "id": "happy",
+        "blendshape": "joy",
+        "animation_pool": ["Happy_Idle", "Clapping", "Nodding"]
+      },
+      {
+        "id": "sad",
+        "blendshape": "sorrow",
+        "animation_pool": ["Sad_Idle", "Crying", "Head_Down"]
+      },
+      {
+        "id": "angry",
+        "blendshape": "angry",
+        "animation_pool": ["Angry_Gesture", "Arms_Crossed"]
+      },
+      {
+        "id": "winning",
+        "blendshape": "fun",
+        "animation_pool": ["Winning_Pose", "Victory_Jump", "Fist_Pump"]
+      },
+      {
+        "id": "festejando",
+        "blendshape": "joy",
+        "animation_pool": ["Dancing_Samba", "Cheering", "Celebrating"]
+      }
+    ]
+  },
+  "animations": {
+    "description": "List of animations for Mixamo/FBX import",
+    "categories": {
+      "idle": [
+        { "filename": "Idle_01.fbx", "name": "Standard Idle", "description": "Basic breathing idle" },
+        { "filename": "Idle_02.fbx", "name": "Looking Around", "description": "Idle with head movements" },
+        { "filename": "Idle_03.fbx", "name": "Shift Weight", "description": "Shifting weight between legs" },
+        { "filename": "Idle_04.fbx", "name": "Check Nails", "description": "Bored/Waiting idle" },
+        { "filename": "Idle_Phone.fbx", "name": "Checking Phone", "description": "Modern idle interaction" }
+      ],
+      "talking": [
+        { "filename": "Talking_01.fbx", "name": "Talking Neutral", "description": "Basic conversation gestures" },
+        { "filename": "Talking_02.fbx", "name": "Talking Explained", "description": "Hand gestures explaining something" },
+        { "filename": "Talking_Excited.fbx", "name": "Talking Excited", "description": "High energy conversation" }
+      ],
+      "emotions": [
+        { "filename": "Happy_Idle.fbx", "name": "Happy Idle", "description": "Bouncing slightly, smiling posture" },
+        { "filename": "Sad_Idle.fbx", "name": "Sad Idle", "description": "Slumped shoulders, looking down" },
+        { "filename": "Angry_Idle.fbx", "name": "Angry Idle", "description": "Tense posture, fists clenched" },
+        { "filename": "Winning.fbx", "name": "Winning", "description": "Victory pose, arms up" },
+        { "filename": "Festejando.fbx", "name": "Celebrating", "description": "Jumping or dancing celebration" },
+        { "filename": "Defeated.fbx", "name": "Defeated", "description": "Falling to knees or head in hands" }
+      ],
+      "actions": [
+        { "filename": "Walking.fbx", "name": "Walking", "description": "Standard walk cycle" },
+        { "filename": "Running.fbx", "name": "Running", "description": "Standard run cycle" },
+        { "filename": "Wave.fbx", "name": "Waving", "description": "Greeting wave" },
+        { "filename": "Bow.fbx", "name": "Bowing", "description": "Formal greeting/thank you" }
+      ]
+    }
+  }
+}
