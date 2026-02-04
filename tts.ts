@@ -42,6 +42,18 @@ export function isValidLang(lang: string) {
     return AVAILABLE_LANGS.includes(lang);
 }
 
+// Emotion presets defining speed and silence duration
+export const EMOTION_PRESETS: Record<string, { speed: number, silence: number }> = {
+    'contenta': { speed: 1.1, silence: 0.1 },
+    'alegre': { speed: 1.1, silence: 0.1 },
+    'enojada': { speed: 1.2, silence: 0.05 },
+    'triste': { speed: 0.8, silence: 0.5 },
+    'sexy': { speed: 0.9, silence: 0.3 },
+    'coqueta': { speed: 0.95, silence: 0.2 },
+    'fria': { speed: 1.0, silence: 0.4 },
+    'distante': { speed: 1.0, silence: 0.5 },
+};
+
 export class UnicodeProcessor {
     indexer: any;
     constructor(indexer: any) {
@@ -246,6 +258,41 @@ export class Style {
         this.ttl = ttlTensor;
         this.dp = dpTensor;
     }
+
+    static blend(s1: Style, s2: Style, alpha: number = 0.5): Style {
+        if (alpha <= 0) return s1;
+        if (alpha >= 1) return s2;
+
+        // Ensure dims match
+        const dimsTTL = s1.ttl.dims;
+        const dimsDP = s1.dp.dims;
+        // Basic check (assumes simple broadcasting or exact match, here exact match expected for style vectors)
+
+        const d1TTL = s1.ttl.data as Float32Array;
+        const d2TTL = s2.ttl.data as Float32Array;
+        const d1DP = s1.dp.data as Float32Array;
+        const d2DP = s2.dp.data as Float32Array;
+
+        if (d1TTL.length !== d2TTL.length || d1DP.length !== d2DP.length) {
+            console.warn("Style blend dimension mismatch, returning source style");
+            return s1;
+        }
+
+        const newTTL = new Float32Array(d1TTL.length);
+        const newDP = new Float32Array(d1DP.length);
+
+        for (let i = 0; i < d1TTL.length; i++) {
+            newTTL[i] = d1TTL[i] * (1 - alpha) + d2TTL[i] * alpha;
+        }
+        for (let i = 0; i < d1DP.length; i++) {
+            newDP[i] = d1DP[i] * (1 - alpha) + d2DP[i] * alpha;
+        }
+
+        return new Style(
+            createTensor('float32', newTTL, dimsTTL),
+            createTensor('float32', newDP, dimsDP)
+        );
+    }
 }
 
 export class TextToSpeech {
@@ -256,6 +303,7 @@ export class TextToSpeech {
     vectorEstOrt: ortNs.InferenceSession;
     vocoderOrt: ortNs.InferenceSession;
     sampleRate: number;
+    emotions: Map<string, Style> = new Map();
 
     constructor(cfgs: any, textProcessor: UnicodeProcessor, dpOrt: ortNs.InferenceSession, textEncOrt: ortNs.InferenceSession, vectorEstOrt: ortNs.InferenceSession, vocoderOrt: ortNs.InferenceSession) {
         this.cfgs = cfgs;
@@ -265,6 +313,17 @@ export class TextToSpeech {
         this.vectorEstOrt = vectorEstOrt;
         this.vocoderOrt = vocoderOrt;
         this.sampleRate = cfgs.ae.sample_rate;
+    }
+
+    async loadEmotion(name: string, pathOrStyle: any) {
+        let style: Style;
+        if (pathOrStyle instanceof Style) {
+            style = pathOrStyle;
+        } else {
+            // Assume it's a path or object that loadVoiceStyle can handle
+            style = await loadVoiceStyle([pathOrStyle]);
+        }
+        this.emotions.set(name.toLowerCase(), style);
     }
 
     async _infer(textList: string[], langList: string[], style: Style, totalStep: number, speed: number = 1.05, progressCallback: any = null) {
@@ -320,8 +379,24 @@ export class TextToSpeech {
         return { wav: Array.from(vocoderOutputs.wav_tts.data as Float32Array), duration };
     }
 
-    async call(text: string, lang: string, style: Style, totalStep: number, speed = 0.92, silenceDuration = 0.4, progressCallback: any = null) {
+    async call(text: string, lang: string, style: Style, totalStep: number, speed = 0.92, silenceDuration = 0.4, progressCallback: any = null, emotion: string | null = null) {
         if (style.ttl.dims[0] !== 1) throw new Error('Single speaker only');
+
+        let targetStyle = style;
+
+        // Apply Emotion Logic
+        if (emotion) {
+            const emKey = emotion.toLowerCase();
+            if (EMOTION_PRESETS[emKey]) {
+                speed = EMOTION_PRESETS[emKey].speed;
+                silenceDuration = EMOTION_PRESETS[emKey].silence;
+            }
+            if (this.emotions.has(emKey)) {
+                // Blend with emotion style (50% ratio default)
+                targetStyle = Style.blend(targetStyle, this.emotions.get(emKey)!, 0.5);
+            }
+        }
+
         // Reduce maxLen to 180 for more stability in Spanish neural patterns
         const maxLen = lang === 'ko' ? 120 : 180;
         const textList = chunkText(text, maxLen);
@@ -330,7 +405,7 @@ export class TextToSpeech {
         let durCat = 0;
 
         for (let i = 0; i < textList.length; i++) {
-            const { wav, duration } = await this._infer([textList[i]], [langList[i]], style, totalStep, speed, progressCallback);
+            const { wav, duration } = await this._infer([textList[i]], [langList[i]], targetStyle, totalStep, speed, progressCallback);
             if (wavCat.length === 0) {
                 wavCat = wav; durCat = duration[0];
             } else {
