@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mixamo Animation Viewer & Exporter</title>
+    <style>
+        body { margin: 0; overflow: hidden; font-family: sans-serif; display: flex; height: 100vh; }
+        #sidebar {
+            width: 300px;
+            background: #333;
+            color: white;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+            overflow-y: auto;
+            border-right: 1px solid #555;
+            box-shadow: 2px 0 5px rgba(0,0,0,0.5);
+            z-index: 10;
+        }
+        #viewport { flex-grow: 1; position: relative; background: #1a1a1a; }
+        h2 { margin-top: 0; font-size: 1.2rem; border-bottom: 1px solid #555; padding-bottom: 10px; }
+        .control-group { display: flex; flex-direction: column; gap: 5px; background: #444; padding: 10px; border-radius: 5px; }
+        label { font-size: 0.9rem; font-weight: bold; color: #ccc; }
+        input[type="file"] { font-size: 0.8rem; }
+        button {
+            padding: 10px;
+            background: #007bff;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-weight: bold;
+            transition: background 0.2s;
+        }
+        button:hover { background: #0056b3; }
+        button:disabled { background: #666; cursor: not-allowed; }
+
+        #anim-list {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+        }
+        .anim-item {
+            background: #555;
+            padding: 8px;
+            border-radius: 4px;
+            cursor: pointer;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .anim-item:hover { background: #666; }
+        .anim-item.active { background: #007bff; color: white; }
+        .anim-name { font-size: 0.9rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 200px; }
+
+        #status {
+            position: absolute;
+            top: 10px;
+            left: 320px;
+            color: white;
+            background: rgba(0,0,0,0.7);
+            padding: 5px 10px;
+            border-radius: 4px;
+            display: none;
+            pointer-events: none;
+        }
+
+        /* Loading spinner */
+        .spinner {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #3498db;
+            border-radius: 50%;
+            width: 20px;
+            height: 20px;
+            animation: spin 1s linear infinite;
+            display: none;
+            margin: 0 auto;
+        }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+
+        .instructions { font-size: 0.8rem; color: #aaa; margin-top: auto; padding-top: 20px; border-top: 1px solid #555; }
+    </style>
+    <!-- Import Map for Clean Imports -->
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+                "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+            }
+        }
+    </script>
+</head>
+<body>
+
+    <div id="sidebar">
+        <h2>Mixamo Animator</h2>
+
+        <div class="control-group">
+            <label>1. Cargar Personaje (Skin)</label>
+            <input type="file" id="input-model" accept=".fbx,.glb,.gltf,.vrm">
+            <small style="font-size: 0.7rem; color: #aaa;">Sube tu personaje base (FBX, GLB, VRM)</small>
+        </div>
+
+        <div class="control-group">
+            <label>2. Cargar Animaciones</label>
+            <input type="file" id="input-anim" accept=".fbx,.vrma" multiple>
+            <small style="font-size: 0.7rem; color: #aaa;">Selecciona archivos FBX o VRMA</small>
+        </div>
+
+        <div class="control-group" style="flex-grow: 1; max-height: 40vh; overflow: hidden; display: flex; flex-direction: column;">
+            <label>Animaciones Cargadas</label>
+            <div style="overflow-y: auto; flex-grow: 1; padding-right: 5px;">
+                <ul id="anim-list">
+                    <!-- List items will go here -->
+                </ul>
+            </div>
+        </div>
+
+        <button id="btn-export" disabled>Exportar GLB (Bot)</button>
+        <div class="spinner" id="loading-spinner"></div>
+
+        <div class="instructions">
+            <p><strong>Uso:</strong></p>
+            1. Sube el modelo del personaje.<br>
+            2. Sube una o varias animaciones.<br>
+            3. Haz clic en la lista para previsualizar.<br>
+            4. Exporta para usar en tu agente.
+        </div>
+    </div>
+
+    <div id="viewport"></div>
+    <div id="status">Listo</div>
+
+    <script type="module" src="./app.js"></script>
+</body>
+</html>
